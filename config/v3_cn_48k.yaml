@@ -4,7 +4,7 @@ preprocess:
     sample_rate: 48000
     n_fft: 2048
     frame_size: 320
-    n_mels": 100
+    n_mels: 100
 trainer:
     devices: "auto"
     max_epochs: 10000
