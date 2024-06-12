@@ -3,7 +3,7 @@ preprocess:
     pitch_estimation: "fcpe"
     sample_rate: 48000
     n_fft: 2048
-    frame_size": 320
+    frame_size: 320
     n_mels": 100
 trainer:
     devices: "auto"
@@ -19,10 +19,10 @@ save:
     models_dir: "models"
 model:
     generator:
-        source_type: "hn"
+        source_type: "cn"
         source:
-            sample_rate: 24000
-            frame_size: 480
+            sample_rate: 48000
+            frame_size: 320
         filter:
             n_mels: 100
             upsample_initial_channels: 256
