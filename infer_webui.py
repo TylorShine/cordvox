@@ -11,7 +11,7 @@ from torchaudio.functional import resample
 import lightning as L
 
 from module.cordvox import Cordvox
-from module.utils.config import load_json_file
+from module.utils.config import load_json_file, load_yaml_file
 from module.utils.f0_estimation import estimate_f0
 from module.utils.mel import LogMelSpectrogram
 
@@ -23,8 +23,13 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--device", default="cpu")
     parser.add_argument("-p", "--pitch-shift", default=0.0, type=float)
     args = parser.parse_args()
-
-    config = load_json_file(args.config)
+    
+    config_path = Path(args.config)
+    
+    if config_path.name.split(".")[-1] == "json":
+        config = load_json_file(args.config)
+    else:
+        config = load_yaml_file(args.config)
     model_path = Path(config['save']['models_dir']) / "model.ckpt"
     device = torch.device(args.device)
 
