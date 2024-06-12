@@ -66,7 +66,7 @@ class CyclicNoiseOscillator(nn.Module):
             frame_size=480,
             min_frequency=20.0,
             base_frequency=100.0,
-            beta=0.78
+            beta=0.707
         ):
         super().__init__()
         self.sample_rate = sample_rate
@@ -79,15 +79,16 @@ class CyclicNoiseOscillator(nn.Module):
         self.pad_size = self.kernel_size - 1
         self.w = nn.Conv1d(1, 1, 1)
 
-    def generate_kernel(self):
+    def generate_kernel(self, freq):
         t = torch.arange(0, self.kernel_size, device=self.w.weight.device)[None, None, :]
-        decay = torch.exp(-t * self.base_frequency / self.beta / self.sample_rate)
+        decay = torch.exp(-t * freq / self.beta / self.sample_rate)
         noise = torch.randn_like(decay)
         kernel = noise * decay
         return kernel
 
     def forward(self, f0):
         with torch.no_grad():
+            f0_orig = f0
             f0 = F.interpolate(f0, scale_factor=self.frame_size, mode='linear')
             N = f0.shape[0]
             L = f0.shape[2]
@@ -96,7 +97,7 @@ class CyclicNoiseOscillator(nn.Module):
             sawtooth = rad % 1.0
             impluse = sawtooth - sawtooth.roll(1, dims=(2))
             noise = torch.randn(N, 1, L, device=f0.device)
-            kernel = self.generate_kernel()
+            kernel = self.generate_kernel(f0_orig.mean())
             impluse = F.pad(impluse, (self.pad_size, 0))
             cyclic_noise = F.conv1d(impluse, kernel)
             source = voiced_mask * cyclic_noise + (1 - voiced_mask) * noise
@@ -182,6 +183,26 @@ class ResBlock4(nn.Module):
         return x
     
 
+class ResBlock5(nn.Module):
+    def __init__(self, channels, kernel_size=3, dilations=[1, 3]):
+        super().__init__()
+        self.convs1 = nn.ModuleList()
+        self.convs2 = nn.ModuleList()
+        for d in dilations:
+            self.convs1.append(weight_norm(nn.Conv1d(channels, channels, kernel_size, 1, get_padding(kernel_size, d), d)))
+            self.convs2.append(weight_norm(nn.Conv1d(channels, channels, 1)))
+        self.apply(init_weights)
+
+    def forward(self, x):
+        for c1, c2 in zip(self.convs1, self.convs2):
+            xt = F.gelu(x)
+            xt = c1(xt)
+            xs = F.celu(x)
+            xs = c2(xs)
+            x = x + xt * xs
+        return x
+    
+
 class FilterNet(nn.Module):
     def __init__(
             self,
@@ -205,6 +226,8 @@ class FilterNet(nn.Module):
             resblock = ResBlock3
         elif resblock_type == "4":
             resblock = ResBlock4
+        elif resblock_type == "5":
+            resblock = ResBlock5
         else:
             raise "invalid resblock type"
 

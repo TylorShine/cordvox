@@ -8,7 +8,7 @@ def get_padding(kernel_size, dilation=1):
 
 
 class DiscriminatorP(nn.Module):
-    def __init__(self, period, kernel_size=5, stride=3, channels=32, channels_mul=2, num_layers=4, max_channels=256, use_spectral_norm=False):
+    def __init__(self, period, kernel_size=5, stride=3, channels=32, channels_mul=2, num_layers=4, max_channels=256, use_spectral_norm=False, pre_act_feature=True):
         super().__init__()
         self.period = period
         norm_f = nn.utils.parametrizations.weight_norm if use_spectral_norm == False else nn.utils.parametrizations.spectral_norm
@@ -24,8 +24,10 @@ class DiscriminatorP(nn.Module):
             c = c_next
         self.convs = nn.ModuleList([norm_f(c) for c in convs])
         self.post = norm_f(nn.Conv2d(c, 1, (3, 1), 1, (1, 0)))
-
-    def forward(self, x):
+        
+        self.forward_func = self.forward_pre_act if pre_act_feature else self.forward_orig
+                
+    def forward_orig(self, x):
         fmap = []
 
         # 1d to 2d
@@ -43,6 +45,28 @@ class DiscriminatorP(nn.Module):
         x = self.post(x)
         fmap.append(x)
         return x, fmap
+    
+    def forward_pre_act(self, x):
+        fmap = []
+
+        # 1d to 2d
+        b, c, t = x.shape
+        if t % self.period != 0:
+            n_pad = self.period - (t % self.period)
+            x = F.pad(x, (0, n_pad))
+            t = t + n_pad
+        x = x.view(b, c, t // self.period, self.period)
+
+        for l in self.convs:
+            x = l(x)
+            fmap.append(x)
+            x = F.leaky_relu(x, 0.1)
+        x = self.post(x)
+        fmap.append(x)
+        return x, fmap
+
+    def forward(self, x):
+        return self.forward_func(x)
 
 
 class MultiPeriodicDiscriminator(nn.Module):
@@ -76,7 +100,7 @@ class MultiPeriodicDiscriminator(nn.Module):
 
 
 class DiscriminatorR(nn.Module):
-    def __init__(self, resolution=128, channels=32, num_layers=6, use_spectral_norm=True):
+    def __init__(self, resolution=128, channels=32, num_layers=6, use_spectral_norm=True, pre_act_feature=True):
         super().__init__()
         norm_f = nn.utils.parametrizations.spectral_norm if use_spectral_norm else nn.utils.parametrizations.weight_norm
         self.convs = nn.ModuleList([norm_f(nn.Conv2d(1, channels, (7, 3), (1, 1), (3, 1)))])
@@ -85,14 +109,16 @@ class DiscriminatorR(nn.Module):
         for _ in range(num_layers):
             self.convs.append(norm_f(nn.Conv2d(channels, channels, (7, 3), (2, 1), (2, 1))))
         self.post = norm_f(nn.Conv2d(channels, 1, 3, 1, 1))
+        
+        self.forward_func = self.forward_pre_act if pre_act_feature else self.forward_orig
 
     def spectrogram(self, x):
         # spectrogram
         w = torch.hann_window(self.n_fft).to(x.device)
         x = torch.stft(x, self.n_fft, self.hop_size, window=w, return_complex=True).abs()
         return x
-
-    def forward(self, x):
+    
+    def forward_orig(self, x):
         x = self.spectrogram(x)
         x = x.unsqueeze(1)
         feats = []
@@ -103,6 +129,21 @@ class DiscriminatorR(nn.Module):
         x = self.post(x)
         feats.append(x)
         return x, feats
+    
+    def forward_pre_act(self, x):
+        x = self.spectrogram(x)
+        x = x.unsqueeze(1)
+        feats = []
+        for l in self.convs:
+            x = l(x)
+            feats.append(x)
+            F.leaky_relu(x, 0.1)
+        x = self.post(x)
+        feats.append(x)
+        return x, feats
+
+    def forward(self, x):
+        return self.forward_func(x)
 
 
 class MultiResolutionDiscriminator(nn.Module):
