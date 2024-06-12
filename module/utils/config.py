@@ -1,4 +1,5 @@
 import json
+import yaml
 
 
 class Config:
@@ -34,4 +35,10 @@ class Config:
 
 
 def load_json_file(path):
-    return Config(**json.load(open(path, encoding='utf-8')))
+    with open(path, encoding='utf-8') as f:
+        return Config(**json.load(f))
+
+
+def load_yaml_file(path):
+    with open(path, encoding='utf-8') as f:
+        return Config(**yaml.safe_load(f))
