@@ -10,7 +10,7 @@ import lightning as L
 
 from module.cordvox import Cordvox
 from module.utils.dataset import VocoderDataModule
-from module.utils.config import load_json_file
+from module.utils.config import load_json_file, load_yaml_file
 from module.utils.safetensors import save_tensors
 
 class SaveCheckpoint(L.Callback):
@@ -36,7 +36,12 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch-size", default=0, type=int)
     args = parser.parse_args()
 
-    config = load_json_file(args.config)
+    config_path = Path(args.config)
+    
+    if config_path.name.split(".")[-1] == "json":
+        config = load_json_file(args.config)
+    else:
+        config = load_yaml_file(args.config)
     model_path = Path(config['save']['models_dir']) / "model.ckpt"
     cb_save_checkpoint = SaveCheckpoint(config['save']['models_dir'], interval=config['save']['interval'])
     trainer = L.Trainer(**config["trainer"], callbacks=[cb_save_checkpoint])

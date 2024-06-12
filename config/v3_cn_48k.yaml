@@ -1,0 +1,44 @@
+preprocess:
+    length: 24000
+    pitch_estimation: "fcpe"
+    sample_rate: 48000
+    n_fft: 2048
+    frame_size": 320
+    n_mels": 100
+trainer:
+    devices: "auto"
+    max_epochs: 10000
+    precision: "bf16-mixed"
+    log_every_n_steps: 50
+data_module:
+    cache_dir: "dataset_cache"
+    batch_size: 48
+    num_workers: 1
+save: 
+    interval: 1000
+    models_dir: "models"
+model:
+    generator:
+        source_type: "hn"
+        source:
+            sample_rate: 24000
+            frame_size: 480
+        filter:
+            n_mels: 100
+            upsample_initial_channels: 256
+            resblock_type: "5"
+            resblock_kernel_sizes: [3, 5, 7]
+            resblock_dilations: [[1, 2], [2, 6], [3, 12]]
+            upsample_kernel_sizes: [24, 20, 8]
+            upsample_rates: [12, 10, 4]
+    discriminator":
+        mpd:
+            periods: [1, 2, 3, 5, 7, 11]
+            channels: 32
+            channels_mul: 2
+            max_channels: 256
+            num_layers: 4
+        mrd:
+            resolutions: [128, 256, 512]
+            channels: 32
+            num_layers: 6

@@ -9,7 +9,7 @@ import torch
 import torchaudio
 from torchaudio.functional import resample
 
-from module.utils.config import load_json_file
+from module.utils.config import load_json_file, load_yaml_file
 from module.utils.f0_estimation import estimate_f0
 from module.utils.mel import LogMelSpectrogram
 
@@ -62,7 +62,13 @@ if __name__ == "__main__":
     parser.add_argument("input", type=str)
     parser.add_argument("-c", "--config", type=str, default="config/v3_24k.json")
     args = parser.parse_args()
-    config = load_json_file(args.config)
+    
+    config_path = Path(args.config)
+    
+    if config_path.name.split(".")[-1] == "json":
+        config = load_json_file(args.config)
+    else:
+        config = load_yaml_file(args.config)
     
     preprocess(Path(args.input), config)
 
